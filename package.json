@@ -1,0 +1,50 @@
+{
+  "name": "stream-capture-multi-session",
+  "version": "2.0.0",
+  "description": "Sistema Universal de Captura Multi-Sessão com VPN",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "NODE_ENV=development DEBUG=true node --inspect=0.0.0.0:9229 index.js",
+    "test": "node --test",
+    "lint": "eslint src/ --ext .js",
+    "setup": "node scripts/setup.js",
+    "vpn:test": "node scripts/test-vpn.js",
+    "config:validate": "node scripts/validate-config.js",
+    "logs:clean": "find ./logs -name '*.log' -mtime +7 -delete",
+    "backup:config": "cp config.json config.backup.$(date +%Y%m%d_%H%M%S).json"
+  },
+  "dependencies": {
+    "puppeteer": "^21.5.0",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "helmet": "^7.1.0",
+    "cors": "^2.8.5",
+    "compression": "^1.7.4",
+    "bcrypt": "^5.1.1",
+    "jsonwebtoken": "^9.0.2",
+    "redis": "^4.6.8",
+    "node-cron": "^3.0.2",
+    "winston": "^3.11.0",
+    "winston-daily-rotate-file": "^4.7.1",
+    "joi": "^17.11.0",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "eslint": "^8.54.0",
+    "nodemon": "^3.0.1",
+    "jest": "^29.7.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "keywords": [
+    "streaming", "capture", "tvheadend", "puppeteer", 
+    "vpn", "multi-session", "m3u8", "streamlink"
+  ],
+  "author": "Stream Capture Team",
+  "license": "MIT"
+}
+

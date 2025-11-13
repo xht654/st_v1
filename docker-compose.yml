@@ -1,0 +1,240 @@
+version: '3.8'
+
+services:
+  # ==========================================
+  # TVHeadend - IPTV Server
+  # ==========================================
+  tvheadend:
+    image: linuxserver/tvheadend:latest
+    container_name: tvheadend
+    hostname: tvheadend
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Lisbon
+      - RUN_OPTS=
+    volumes:
+      - ./tvheadend/config:/config
+      - ./tvheadend/recordings:/recordings
+      - ./tvheadend/timeshift:/timeshift
+    ports:
+      - "9981:9981"   # Web UI
+      - "9982:9982"   # HTSP
+    restart: unless-stopped
+    networks:
+      - streaming_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9981"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ==========================================
+  # Stream Capture - Streamlink + FFmpeg HLS
+  # ==========================================
+  stream-capture:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: stream_capture
+    hostname: stream-capture
+    restart: unless-stopped
+    
+    environment:
+      # Node.js
+      - NODE_ENV=production
+      - DEBUG=false
+      - TZ=Europe/Lisbon
+      
+      # Security
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      
+      # External Access (opcional)
+      - USE_EXTERNAL_URL=${USE_EXTERNAL_URL:-false}
+      - EXTERNAL_HOST=${EXTERNAL_HOST:-localhost}
+      
+      # VPN (opcional)
+      - VPN_ENABLED=${VPN_ENABLED:-false}
+      - VPN_USERNAME=${VPN_USERNAME:-}
+      - VPN_PASSWORD=${VPN_PASSWORD:-}
+      
+      # TVHeadend
+      - TVHEADEND_HOST=tvheadend
+      - TVHEADEND_PORT=9982
+      - TVHEADEND_USER=${TVHEADEND_USER:-admin}
+      - TVHEADEND_PASS=${TVHEADEND_PASS:-admin}
+    
+    volumes:
+      # Logs
+      - ./logs:/app/logs
+      
+      # HLS Output (NOVO!)
+      - ./hls:/app/hls
+      
+      # Timeshift (Pipes temporárias)
+      - ./tvheadend/timeshift:/app/timeshift
+      
+      # Configuração
+      - ./config.json:/app/config.json:ro
+      
+      # Web UI
+      - ./web:/app/web:ro
+      
+      # VPN (se usar)
+      - ./vpn:/app/vpn:ro
+      
+      # TUN device (para VPN)
+      - /dev/net/tun:/dev/net/tun
+    
+    ports:
+      - "3000:3000"    # API (legado)
+      - "3001:3001"    # Web UI
+      - "8080:8080"    # HTTP HLS Server (PRINCIPAL!)
+      - "8081:8081"    # HTTP secundário
+    
+    depends_on:
+      tvheadend:
+        condition: service_healthy
+    
+    networks:
+      - streaming_network
+    
+    # Capabilities para VPN
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    
+    devices:
+      - /dev/net/tun
+    
+    # Security
+    privileged: false
+    security_opt:
+      - no-new-privileges:true
+    
+    # Resources (opcional)
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    
+    # Healthcheck
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ==========================================
+  # Redis - Cache & Sessions (OPCIONAL)
+  # ==========================================
+  redis:
+    image: redis:7-alpine
+    container_name: stream_cache
+    hostname: redis
+    restart: unless-stopped
+    
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --save 60 1
+      --loglevel warning
+    
+    volumes:
+      - redis_data:/data
+    
+    networks:
+      - streaming_network
+    
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    
+    # Apenas iniciar se perfil 'cache' ativo
+    profiles:
+      - cache
+
+  # ==========================================
+  # Nginx - Load Balancer (OPCIONAL)
+  # ==========================================
+  nginx:
+    image: nginx:alpine
+    container_name: stream_proxy
+    hostname: nginx
+    restart: unless-stopped
+    
+    ports:
+      - "80:80"
+      - "443:443"
+    
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./hls:/usr/share/nginx/html/hls:ro  # Servir HLS via Nginx
+    
+    depends_on:
+      - stream-capture
+    
+    networks:
+      - streaming_network
+    
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    
+    # Apenas iniciar se perfil 'production' ativo
+    profiles:
+      - production
+
+# ==========================================
+# Volumes
+# ==========================================
+volumes:
+  redis_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./redis_data
+
+# ==========================================
+# Networks
+# ==========================================
+networks:
+  streaming_network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1
+    driver_opts:
+      com.docker.network.bridge.name: br-streaming
+      com.docker.network.driver.mtu: 1500
+
+# ==========================================
+# Configurações Globais
+# ==========================================
+# Para usar:
+# docker-compose up -d                    # Básico (tvheadend + stream-capture)
+# docker-compose --profile cache up -d    # Com Redis
+# docker-compose --profile production up  # Com Nginx

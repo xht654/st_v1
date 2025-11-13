@@ -1,0 +1,25 @@
+
+
+# Override para desenvolvimento
+services:
+  stream-capture:
+    environment:
+      - NODE_ENV=development
+      - DEBUG=true
+    volumes:
+      - ./src:/app/src:ro
+      - ./web:/app/web:ro
+      - ./scripts:/app/scripts:ro
+    ports:
+      - "9229:9229"  # Debug port
+    command: ["node", "--inspect=0.0.0.0:9229", "index.js"]
+    restart: "no"
+
+  # Serviço adicional para desenvolvimento
+  redis:
+    profiles: ["dev"]
+
+  # Nginx desabilitado em desenvolvimento
+  nginx:
+    profiles: ["never"]
+

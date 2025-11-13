@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stream Capture Multi-Sessão</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+    <link href="styles.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+    <!-- Navigation -->
+    <nav class="navbar navbar-dark bg-dark shadow-sm">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">
+                <i class="fas fa-video text-primary"></i> 
+                Stream Capture Multi-Sessão v2.0
+            </span>
+            <div class="d-flex align-items-center">
+                <!-- VPN Status -->
+                <div id="vpnStatusIndicator" class="me-3">
+                    <span class="badge bg-secondary">
+                        <i class="fas fa-shield-alt"></i> VPN: <span id="vpnStatusText">Verificando...</span>
+                    </span>
+                </div>
+                
+                <!-- System Status -->
+                <span class="navbar-text me-3" id="systemStatus">
+                    <span class="status-indicator status-inactive"></span>
+                    Verificando...
+                </span>
+                
+                <!-- Uptime -->
+                <span class="navbar-text me-3" id="uptimeStatus">
+                    <i class="fas fa-clock"></i> 
+                    <span class="uptime-badge" id="uptimeText">--:--:--</span>
+                </span>
+                
+                <!-- Actions -->
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-light" onclick="refreshAll()" title="Refresh">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                    <a href="http://localhost:8080/stream.m3u8" target="_blank" class="btn btn-outline-success" title="Stream">
+                        <i class="fas fa-play"></i>
+                    </a>
+                    <a href="http://localhost:9981" target="_blank" class="btn btn-outline-primary" title="TVHeadend">
+                        <i class="fas fa-tv"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-lg-3 col-md-4">
+                <!-- Quick Actions -->
+                <div class="card card-hover mb-4">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0"><i class="fas fa-bolt"></i> Ações Rápidas</h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- VPN Controls -->
+                        <div class="vpn-controls mb-3">
+                            <h6 class="text-success mb-2"><i class="fas fa-shield-alt"></i> Controle VPN</h6>
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-outline-success btn-sm" onclick="vpnConnect()" id="vpnConnectBtn">
+                                    <i class="fas fa-plug"></i> Conectar VPN
+                                </button>
+                                <button class="btn btn-outline-warning btn-sm" onclick="vpnDisconnect()" id="vpnDisconnectBtn">
+                                    <i class="fas fa-unlink"></i> Desconectar VPN
+                                </button>
+                                <button class="btn btn-outline-info btn-sm" onclick="vpnStatus()">
+                                    <i class="fas fa-info-circle"></i> Status VPN
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Session Controls -->
+                        <div class="session-controls mb-3">
+                            <h6 class="text-primary mb-2"><i class="fas fa-play-circle"></i> Sessões</h6>
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-primary btn-sm" onclick="startParallelCapture()">
+                                    <i class="fas fa-rocket"></i> Captura Paralela
+                                </button>
+                                <button class="btn btn-outline-danger btn-sm" onclick="stopAllSessions()">
+                                    <i class="fas fa-stop"></i> Parar Todas
+                                </button>
+                                <button class="btn btn-outline-info btn-sm" onclick="refreshSessions()">
+                                    <i class="fas fa-sync"></i> Atualizar Sessões
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Debug & Manual -->
+                        <div class="debug-controls">
+                            <h6 class="text-warning mb-2"><i class="fas fa-bug"></i> Debug</h6>
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-warning btn-sm" onclick="forceCapture()" id="forceCaptureBtn">
+                                    <i class="fas fa-hammer"></i> Captura Manual
+                                </button>
+                                <button class="btn btn-outline-secondary btn-sm" onclick="clearDebugData()">
+                                    <i class="fas fa-eraser"></i> Limpar Debug
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- System Info -->
+                <div class="card card-hover mb-4">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0"><i class="fas fa-tachometer-alt"></i> Sistema</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="systemInfo" class="mb-3">
+                            <div class="d-flex justify-content-between mb-1">
+                                <small>API:</small>
+                                <span id="apiStatus" class="badge bg-secondary">-</span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-1">
+                                <small>Stream Server:</small>
+                                <span id="httpStatus" class="badge bg-secondary">-</span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-1">
+                                <small>Sessões Ativas:</small>
+                                <span id="activeSessionsCount" class="badge bg-secondary">-</span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-1">
+                                <small>Restarts:</small>
+                                <span id="restartsCount" class="badge bg-warning">-</span>
+                            </div>
+                        </div>
+
+                        <!-- Tools Status -->
+                        <div class="tools-status">
+                            <small class="text-muted">Ferramentas:</small>
+                            <div class="d-flex justify-content-between">
+                                <span>Streamlink:</span>
+                                <span id="streamlinkStatus" class="badge bg-secondary">-</span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>FFmpeg:</span>
+                                <span id="ffmpegStatus" class="badge bg-secondary">-</span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>VLC:</span>
+                                <span id="vlcStatus" class="badge bg-secondary">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Stats -->
+                <div class="card card-hover">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="mb-0"><i class="fas fa-chart-bar"></i> Estatísticas</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="text-center mb-2">
+                            <div class="fs-4 fw-bold text-primary" id="totalSites">-</div>
+                            <small class="text-muted">Sites Configurados</small>
+                        </div>
+                        <hr>
+                        <div class="stats-grid">
+                            <div class="d-flex justify-content-between">
+                                <span>Ativos:</span>
+                                <span id="activeSites" class="badge bg-success">-</span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>Inativos:</span>
+                                <span id="inactiveSites" class="badge bg-danger">-</span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>Avançado:</span>
+                                <span id="advancedSites" class="badge bg-primary">-</span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>Simples:</span>
+                                <span id="simpleSites" class="badge bg-success">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-lg-9 col-md-8">
+                <!-- Main Tabs -->
+                <ul class="nav nav-tabs" id="mainTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="dashboard-tab" data-bs-toggle="tab" data-bs-target="#dashboard" type="button">
+                            <i class="fas fa-tachometer-alt"></i> Dashboard
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="sessions-tab" data-bs-toggle="tab" data-bs-target="#sessions" type="button">
+                            <i class="fas fa-play-circle"></i> Sessões
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="sites-tab" data-bs-toggle="tab" data-bs-target="#sites" type="button">
+                            <i class="fas fa-globe"></i> Sites
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="vpn-tab" data-bs-toggle="tab" data-bs-target="#vpn" type="button">
+                            <i class="fas fa-shield-alt"></i> VPN
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="config-tab" data-bs-toggle="tab" data-bs-target="#config" type="button">
+                            <i class="fas fa-cog"></i> Configuração
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="debug-tab" data-bs-toggle="tab" data-bs-target="#debug" type="button">
+                            <i class="fas fa-bug"></i> Debug
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="logs-tab" data-bs-toggle="tab" data-bs-target="#logs" type="button">
+                            <i class="fas fa-file-alt"></i> Logs
+                        </button>
+                    </li>
+                </ul>
+
+                <!-- Tab Content -->
+                <div class="tab-content mt-3" id="mainTabContent">
+                    <!-- Dashboard Tab -->
+                    <div class="tab-pane fade show active" id="dashboard" role="tabpanel">
+                        <div class="row">
+                            <!-- Active Sessions Overview -->
+                            <div class="col-md-6 mb-4">
+                                <div class="card h-100">
+                                    <div class="card-header bg-primary text-white">
+                                        <h5 class="mb-0"><i class="fas fa-play-circle"></i> Sessões Ativas</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="activeSessionsOverview">
+                                            <div class="text-center text-muted">
+                                                <i class="fas fa-spinner fa-spin"></i> Carregando...
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- VPN Status -->
+                            <div class="col-md-6 mb-4">
+                                <div class="card h-100">
+                                    <div class="card-header bg-success text-white">
+                                        <h5 class="mb-0"><i class="fas fa-shield-alt"></i> Status VPN</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="vpnStatusOverview">
+                                            <div class="text-center text-muted">
+                                                <i class="fas fa-spinner fa-spin"></i> Carregando...
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- System Performance -->
+                            <div class="col-12 mb-4">
+                                <div class="card">
+                                    <div class="card-header bg-info text-white">
+                                        <h5 class="mb-0"><i class="fas fa-chart-line"></i> Performance do Sistema</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="systemPerformance">
+                                            <div class="text-center text-muted">
+                                                <i class="fas fa-spinner fa-spin"></i> Carregando...
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sessions Tab -->
+                    <div class="tab-pane fade" id="sessions" role="tabpanel">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0"><i class="fas fa-play-circle"></i> Gestão de Sessões</h5>
+                                <div>
+                                    <button class="btn btn-success btn-sm me-2" onclick="startParallelCapture()">
+                                        <i class="fas fa-rocket"></i> Captura Paralela
+                                    </button>
+                                    <button class="btn btn-danger btn-sm" onclick="stopAllSessions()">
+                                        <i class="fas fa-stop"></i> Parar Todas
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead class="table-dark">
+                                            <tr>
+                                                <th>Site</th>
+                                                <th>Status</th>
+                                                <th>Tipo Stream</th>
+                                                <th>Uptime</th>
+                                                <th>Restarts</th>
+                                                <th>Ações</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="sessionsTable">
+                                            <tr>
+                                                <td colspan="6" class="text-center text-muted">
+                                                    <i class="fas fa-spinner fa-spin"></i> Carregando sessões...
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sites Tab -->
+                    <div class="tab-pane fade" id="sites" role="tabpanel">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0"><i class="fas fa-globe"></i> Gestão de Sites</h5>
+                                <div>
+                                    <button class="btn btn-outline-primary btn-sm me-2" onclick="exportConfig()">
+                                        <i class="fas fa-download"></i> Exportar
+                                    </button>
+                                    <button class="btn btn-success btn-sm" onclick="showAddSite()">
+                                        <i class="fas fa-plus"></i> Novo Site
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-hover table-sm">
+                                        <thead class="table-dark">
+                                            <tr>
+                                                <th>Status</th>
+                                                <th>Nome</th>
+                                                <th>URL</th>
+                                                <th>Método</th>
+                                                <th>Proteção</th>
+                                                <th>VPN</th>
+                                                <th>Ações</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="sitesTable">
+                                            <tr>
+                                                <td colspan="7" class="text-center text-muted">
+                                                    <i class="fas fa-spinner fa-spin"></i> Carregando sites...
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- VPN Tab -->
+                    <div class="tab-pane fade" id="vpn" role="tabpanel">
+                        <div class="row">
+                            <!-- VPN Status & Controls -->
+                            <div class="col-md-6 mb-4">
+                                <div class="card">
+                                    <div class="card-header bg-success text-white">
+                                        <h5 class="mb-0"><i class="fas fa-shield-alt"></i> Status & Controle VPN</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="vpnStatusDetail">
+                                            <div class="text-center text-muted">
+                                                <i class="fas fa-spinner fa-spin"></i> Carregando...
+                                            </div>
+                                        </div>
+                                        
+                                        <hr>
+                                        
+                                        <div class="d-grid gap-2">
+                                            <button class="btn btn-success" onclick="vpnConnect()" id="vpnConnectBtnMain">
+                                                <i class="fas fa-plug"></i> Conectar VPN
+                                            </button>
+                                            <button class="btn btn-warning" onclick="vpnDisconnect()" id="vpnDisconnectBtnMain">
+                                                <i class="fas fa-unlink"></i> Desconectar VPN
+                                            </button>
+                                            <button class="btn btn-info" onclick="testVPNConnectivity()">
+                                                <i class="fas fa-vial"></i> Testar Conectividade
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- VPN Configuration -->
+                            <div class="col-md-6 mb-4">
+                                <div class="card">
+                                    <div class="card-header bg-primary text-white">
+                                        <h5 class="mb-0"><i class="fas fa-cog"></i> Configuração VPN</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <form id="vpnConfigForm">
+                                            <div class="mb-3">
+                                                <label class="form-label">Provedor VPN</label>
+                                                <select class="form-control" id="vpnProvider">
+                                                    <option value="purevpn">PureVPN</option>
+                                                    <option value="openvpn">OpenVPN Personalizado</option>
+                                                </select>
+                                            </div>
+                                            
+                                            <div class="form-check mb-3">
+                                                <input class="form-check-input" type="checkbox" id="vpnEnabled">
+                                                <label class="form-check-label" for="vpnEnabled">
+                                                    Habilitar VPN
+                                                </label>
+                                            </div>
+                                            
+                                            <div class="form-check mb-3">
+                                                <input class="form-check-input" type="checkbox" id="vpnAutoConnect">
+                                                <label class="form-check-label" for="vpnAutoConnect">
+                                                    Conectar automaticamente
+                                                </label>
+                                            </div>
+                                            
+                                            <div id="pureVPNConfig">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Servidor PureVPN</label>
+                                                    <select class="form-control" id="pureVPNServer">
+                                                        <option value="us1-ovpn.purevpn.net">Estados Unidos 1</option>
+                                                        <option value="us2-ovpn.purevpn.net">Estados Unidos 2</option>
+                                                        <option value="uk1-ovpn.purevpn.net">Reino Unido</option>
+                                                        <option value="de1-ovpn.purevpn.net">Alemanha</option>
+                                                        <option value="fr1-ovpn.purevpn.net">França</option>
+                                                    </select>
+                                                </div>
+                                                
+                                                <div class="mb-3">
+                                                    <label class="form-label">Username PureVPN</label>
+                                                    <input type="text" class="form-control" id="pureVPNUsername">
+                                                </div>
+                                                
+                                                <div class="mb-3">
+                                                    <label class="form-label">Password PureVPN</label>
+                                                    <input type="password" class="form-control" id="pureVPNPassword">
+                                                </div>
+                                            </div>
+                                            
+                                            <button type="button" class="btn btn-primary" onclick="saveVPNConfig()">
+                                                <i class="fas fa-save"></i> Salvar Configuração
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Config Tab -->
+                    <div class="tab-pane fade" id="config" role="tabpanel">
+                        <div class="row">
+                            <div class="col-md-6 mb-4">
+                                <div class="card">
+                                    <div class="card-header bg-warning text-dark">
+                                        <h5 class="mb-0"><i class="fas fa-database"></i> TVHeadend</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <form id="tvheadendForm">
+                                            <div class="mb-3">
+                                                <label class="form-label">Host</label>
+                                                <input type="text" class="form-control" id="tvhHost" value="tvheadend">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Porta</label>
+                                                <input type="number" class="form-control" id="tvhPort" value="9982">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Username</label>
+                                                <input type="text" class="form-control" id="tvhUsername">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Password</label>
+                                                <input type="password" class="form-control" id="tvhPassword">
+                                            </div>
+                                            <button type="button" class="btn btn-warning" onclick="saveTVHeadendConfig()">
+                                                <i class="fas fa-save"></i> Salvar TVHeadend
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6 mb-4">
+                                <div class="card">
+                                    <div class="card-header bg-info text-white">
+                                        <h5 class="mb-0"><i class="fas fa-tools"></i> Sistema</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="d-grid gap-2">
+                                            <button class="btn btn-outline-primary" onclick="reloadConfig()">
+                                                <i class="fas fa-sync"></i> Recarregar Configuração
+                                            </button>
+                                            <button class="btn btn-outline-success" onclick="exportConfig()">
+                                                <i class="fas fa-download"></i> Exportar Configuração
+                                            </button>
+                                            <button class="btn btn-outline-warning" onclick="backupConfig()">
+                                                <i class="fas fa-archive"></i> Backup Configuração
+                                            </button>
+                                            <button class="btn btn-outline-danger" onclick="resetSystem()">
+                                                <i class="fas fa-exclamation-triangle"></i> Reset Sistema
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Debug Tab -->
+                    <div class="tab-pane fade" id="debug" role="tabpanel">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="card">
+                                    <div class="card-header d-flex justify-content-between align-items-center">
+                                        <h5 class="mb-0"><i class="fas fa-link"></i> URLs Detectados</h5>
+                                        <div>
+                                            <button class="btn btn-outline-primary btn-sm me-2" onclick="refreshDebugUrls()">
+                                                <i class="fas fa-sync"></i> Atualizar
+                                            </button>
+                                            <button class="btn btn-outline-secondary btn-sm" onclick="clearDebugUrls()">
+                                                <i class="fas fa-eraser"></i> Limpar
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <small class="text-muted">
+                                                Total de URLs detectados: <span id="debugUrlCount" class="badge bg-info">0</span>
+                                            </small>
+                                        </div>
+                                        <div class="debug-container">
+                                            <pre id="debugUrls" class="debug-output">Clique em "Atualizar" para ver URLs detectados...</pre>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="mb-0"><i class="fas fa-code"></i> Info da Página</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="debug-container">
+                                            <pre id="pageContent" class="debug-output small">Aguardando captura...</pre>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <div class="alert alert-info">
+                                    <h6><i class="fas fa-lightbulb"></i> Como usar o Debug:</h6>
+                                    <ol class="mb-0">
+                                        <li><strong>Execute captura:</strong> Use "Captura Manual" ou aguarde captura automática</li>
+                                        <li><strong>Analise URLs:</strong> Veja quais URLs foram detectados</li>
+                                        <li><strong>Identifique padrões:</strong> Procure por .m3u8, tokens, ou padrões específicos</li>
+                                        <li><strong>Configure filtros:</strong> Use os padrões encontrados nos sites</li>
+                                        <li><strong>Teste:</strong> Execute nova captura para validar</li>
+                                    </ol>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Logs Tab -->
+                    <div class="tab-pane fade" id="logs" role="tabpanel">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0"><i class="fas fa-file-alt"></i> Logs do Sistema</h5>
+                                <div>
+                                    <button class="btn btn-outline-primary btn-sm me-2" onclick="autoRefreshLogs()" id="autoRefreshBtn">
+                                        <i class="fas fa-sync"></i> Auto Refresh
+                                    </button>
+                                    <button class="btn btn-primary btn-sm me-2" onclick="loadLogs()">
+                                        <i class="fas fa-refresh"></i> Atualizar
+                                    </button>
+                                    <button class="btn btn-outline-secondary btn-sm" onclick="clearLogsDisplay()">
+                                        <i class="fas fa-eraser"></i> Limpar
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="logs-container" id="logsContainer">
+                                    <pre id="logsContent">Clique em "Atualizar" para ver os logs do sistema...</pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Site Modal -->
+    <!-- Site Modal - COMPLETO E FUNCIONAL -->
+<div class="modal fade" id="siteModal" tabindex="-1" aria-labelledby="siteModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="siteModalTitle">
+                    <i class="fas fa-plus"></i> Adicionar Site
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="siteForm">
+                    <!-- Informações Básicas -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <h6 class="border-bottom pb-2 mb-3 text-primary">
+                                <i class="fas fa-info-circle"></i> Informações Básicas
+                            </h6>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="siteName" class="form-label fw-bold">Nome do Site <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="siteName" required 
+                                   placeholder="Ex: FreeShot DAZN F1">
+                            <div class="form-text">Nome descritivo para identificar o site</div>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="siteUrl" class="form-label fw-bold">URL <span class="text-danger">*</span></label>
+                            <input type="url" class="form-control" id="siteUrl" required 
+                                   placeholder="https://exemplo.com/stream">
+                            <div class="form-text">URL completa do stream</div>
+                        </div>
+                        
+                        <div class="col-md-4 mb-3">
+                            <label for="siteCaptureMethod" class="form-label fw-bold">Método de Captura</label>
+                            <select class="form-select" id="siteCaptureMethod" onchange="toggleCaptureMethodFields()">
+                                <option value="advanced">🔬 Avançado (Recomendado)</option>
+                                <option value="simple">⚡ Simples</option>
+                            </select>
+                            <div class="form-text">Avançado: detecta automaticamente. Simples: usa padrões definidos</div>
+                        </div>
+                        
+                        <div class="col-md-4 mb-3">
+                            <label for="siteWaitTime" class="form-label fw-bold">Tempo de Espera (ms)</label>
+                            <input type="number" class="form-control" id="siteWaitTime" value="10000" 
+                                   min="1000" max="60000" step="1000">
+                            <div class="form-text">Tempo para carregar página (1000-60000)</div>
+                        </div>
+                        
+                        <div class="col-md-4 mb-3">
+                            <label for="sitePriority" class="form-label fw-bold">Prioridade</label>
+                            <input type="number" class="form-control" id="sitePriority" value="5" 
+                                   min="1" max="10">
+                            <div class="form-text">1 = Máxima, 10 = Mínima</div>
+                        </div>
+                        
+                        <div class="col-12 mb-3">
+                            <label for="siteUserAgent" class="form-label fw-bold">User Agent</label>
+                            <input type="text" class="form-control" id="siteUserAgent" 
+                                   placeholder="Mozilla/5.0 (Windows NT 10.0; Win64; x64)...">
+                            <div class="form-text">Deixe vazio para usar o padrão do sistema</div>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="siteReferer" class="form-label fw-bold">Referer</label>
+                            <input type="text" class="form-control" id="siteReferer" 
+                                   placeholder="https://exemplo.com/">
+                            <div class="form-text">Header Referer usado no Streamlink e navegador</div>
+                        </div>
+                        
+                        <div class="col-md-3 mb-3">
+                            <div class="form-check form-switch mt-4 pt-2">
+                                <input class="form-check-input" type="checkbox" id="siteEnabled" checked>
+                                <label class="form-check-label fw-bold" for="siteEnabled">
+                                    <i class="fas fa-toggle-on text-success"></i> Site Habilitado
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-3 mb-3">
+                            <div class="form-check form-switch mt-4 pt-2">
+                                <input class="form-check-input" type="checkbox" id="siteVpnRequired">
+                                <label class="form-check-label fw-bold" for="siteVpnRequired">
+                                    <i class="fas fa-shield-alt text-warning"></i> Requer VPN
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Streamlink Settings -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <h6 class="border-bottom pb-2 mb-3 text-success">
+                                <i class="fas fa-stream"></i> Configurações Streamlink
+                            </h6>
+                        </div>
+                        
+                        <div class="col-md-3 mb-3">
+                            <label for="streamlinkQuality" class="form-label fw-bold">Qualidade</label>
+                            <input type="text" class="form-control" id="streamlinkQuality" value="best" 
+                                   placeholder="best, 720p, 480p, worst">
+                            <div class="form-text">best, 1080p, 720p, 480p, worst</div>
+                        </div>
+                        
+                        <div class="col-md-3 mb-3">
+                            <label for="streamlinkRetryStreams" class="form-label fw-bold">Retry Streams</label>
+                            <input type="number" class="form-control" id="streamlinkRetryStreams" value="3" 
+                                   min="1" max="10">
+                            <div class="form-text">Tentativas de reconexão ao stream</div>
+                        </div>
+                        
+                        <div class="col-md-3 mb-3">
+                            <label for="streamlinkRetryMax" class="form-label fw-bold">Retry Max</label>
+                            <input type="number" class="form-control" id="streamlinkRetryMax" value="5" 
+                                   min="1" max="20">
+                            <div class="form-text">Máximo de tentativas totais</div>
+                        </div>
+                        
+                        <div class="col-md-3 mb-3">
+                            <div class="form-check form-switch mt-4 pt-2">
+                                <input class="form-check-input" type="checkbox" id="streamlinkUseReferer" checked>
+                                <label class="form-check-label fw-bold" for="streamlinkUseReferer">
+                                    Usar Referer
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="col-12 mb-3">
+                            <label for="streamlinkCustomArgs" class="form-label fw-bold">Argumentos Personalizados</label>
+                            <input type="text" class="form-control font-monospace" id="streamlinkCustomArgs" 
+                                   placeholder="--ringbuffer-size 16M --hls-timeout 120">
+                            <div class="form-text">Argumentos extras do Streamlink (separados por espaço)</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Advanced Capture - Patterns -->
+                    <div id="advancedCaptureFields" class="row mb-4">
+                        <div class="col-12">
+                            <h6 class="border-bottom pb-2 mb-3 text-info">
+                                <i class="fas fa-search"></i> Padrões de Detecção (Método Avançado)
+                            </h6>
+                            <div class="alert alert-info mb-3">
+                                <i class="fas fa-info-circle"></i> 
+                                <strong>Padrões de Detecção:</strong> Palavras-chave para identificar URLs de vídeo, áudio e streams combinados.
+                                O sistema procura estas palavras nas URLs capturadas.
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4 mb-3">
+                            <label for="patternsVideo" class="form-label fw-bold">
+                                <i class="fas fa-video text-primary"></i> Padrões Vídeo
+                            </label>
+                            <input type="text" class="form-control" id="patternsVideo" 
+                                   placeholder="tracks-v1, video, v1, hd">
+                            <div class="form-text">Separados por vírgula</div>
+                        </div>
+                        
+                        <div class="col-md-4 mb-3">
+                            <label for="patternsAudio" class="form-label fw-bold">
+                                <i class="fas fa-volume-up text-success"></i> Padrões Áudio
+                            </label>
+                            <input type="text" class="form-control" id="patternsAudio" 
+                                   placeholder="tracks-a1, audio, a1, sound">
+                            <div class="form-text">Separados por vírgula</div>
+                        </div>
+                        
+                        <div class="col-md-4 mb-3">
+                            <label for="patternsCombined" class="form-label fw-bold">
+                                <i class="fas fa-layer-group text-warning"></i> Padrões Combinados
+                            </label>
+                            <input type="text" class="form-control" id="patternsCombined" 
+                                   placeholder="index.m3u8, master.m3u8, playlist.m3u8">
+                            <div class="form-text">Separados por vírgula</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Simple Capture -->
+                    <div id="simpleCaptureFields" class="row mb-4" style="display: none;">
+                        <div class="col-12">
+                            <h6 class="border-bottom pb-2 mb-3 text-warning">
+                                <i class="fas fa-bolt"></i> Captura Simples - Configuração JSON
+                            </h6>
+                            <div class="alert alert-warning mb-3">
+                                <i class="fas fa-exclamation-triangle"></i> 
+                                <strong>Modo Simples:</strong> Use quando souber exatamente quais padrões procurar.
+                                Defina os padrões em formato JSON abaixo.
+                            </div>
+                        </div>
+                        
+                        <div class="col-12 mb-3">
+                            <label for="simpleCapturePatterns" class="form-label fw-bold">Padrões JSON</label>
+                            <textarea class="form-control font-monospace" id="simpleCapturePatterns" rows="10" 
+                                      style="font-size: 13px; line-height: 1.5;">[]</textarea>
+                            <div class="form-text">
+                                <strong>Exemplo:</strong><br>
+                                <code>[{"type": "combined", "includes": [".m3u8", "token="]}, {"type": "video", "includes": ["tracks-v1"]}]</code>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="simpleCaptureWaitTime" class="form-label fw-bold">Tempo de Espera (ms)</label>
+                            <input type="number" class="form-control" id="simpleCaptureWaitTime" value="5000" 
+                                   min="1000" max="30000" step="1000">
+                            <div class="form-text">Tempo de espera após carregar página (1000-30000)</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Ad Protection -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <h6 class="border-bottom pb-2 mb-3 text-danger">
+                                <i class="fas fa-shield-alt"></i> Proteção Anti-Ads
+                            </h6>
+                        </div>
+                        
+                        <div class="col-md-4 mb-3">
+                            <label for="siteAdProtection" class="form-label fw-bold">Nível de Proteção</label>
+                            <select class="form-select" id="siteAdProtection">
+                                <option value="off">🔓 Desligado</option>
+                                <option value="low">🟡 Baixo</option>
+                                <option value="medium" selected>🟠 Médio (Recomendado)</option>
+                                <option value="high">🔴 Alto</option>
+                            </select>
+                            <div class="form-text">
+                                <strong>Off:</strong> Sem bloqueio<br>
+                                <strong>Baixo:</strong> Bloqueia pop-ups básicos<br>
+                                <strong>Médio:</strong> + Imagens e ads comuns<br>
+                                <strong>Alto:</strong> + Analytics e trackers
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4 mb-3">
+                            <label for="adProtectionCustomBlocked" class="form-label fw-bold">
+                                <i class="fas fa-ban text-danger"></i> Domínios Bloqueados (Custom)
+                            </label>
+                            <textarea class="form-control font-monospace" id="adProtectionCustomBlocked" rows="5" 
+                                      style="font-size: 12px;"
+                                      placeholder="ads.exemplo.com&#10;tracker.exemplo.com&#10;analytics.site.com"></textarea>
+                            <div class="form-text">Um domínio por linha</div>
+                        </div>
+                        
+                        <div class="col-md-4 mb-3">
+                            <label for="adProtectionAllowed" class="form-label fw-bold">
+                                <i class="fas fa-check text-success"></i> Domínios Permitidos (Whitelist)
+                            </label>
+                            <textarea class="form-control font-monospace" id="adProtectionAllowed" rows="5" 
+                                      style="font-size: 12px;"
+                                      placeholder="cdn.exemplo.com&#10;stream.exemplo.com&#10;player.site.com"></textarea>
+                            <div class="form-text">Um domínio por linha (sempre permitidos)</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Session Config -->
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <h6 class="border-bottom pb-2 mb-3 text-secondary">
+                                <i class="fas fa-cogs"></i> Configurações de Sessão (Opcional)
+                            </h6>
+                        </div>
+                        
+                        <div class="col-md-4 mb-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="sessionAutoRestart" checked>
+                                <label class="form-check-label fw-bold" for="sessionAutoRestart">
+                                    Auto-Restart
+                                </label>
+                            </div>
+                            <div class="form-text">Reiniciar automaticamente em caso de falha</div>
+                        </div>
+                        
+                        <div class="col-md-4 mb-3">
+                            <label for="sessionMaxRestarts" class="form-label fw-bold">Max Restarts</label>
+                            <input type="number" class="form-control" id="sessionMaxRestarts" value="5" 
+                                   min="1" max="20">
+                        </div>
+                        
+                        <div class="col-md-4 mb-3">
+                            <label for="sessionRestartDelay" class="form-label fw-bold">Restart Delay (ms)</label>
+                            <input type="number" class="form-control" id="sessionRestartDelay" value="3000" 
+                                   min="1000" max="30000" step="1000">
+                        </div>
+                    </div>
+                    
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+                <button type="button" class="btn btn-success" onclick="saveSite()">
+                    <i class="fas fa-save"></i> Salvar Site
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+    <!-- Toast Container -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3" id="toastContainer"></div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay d-none">
+        <div class="loading-content">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Carregando...</span>
+            </div>
+            <div class="mt-2">Processando...</div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
+

@@ -1,0 +1,96 @@
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
+# node_modules
+node_modules/
+jspm_packages/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Config files with secrets
+config.json
+config.*.json
+!config.example.json
+
+# VPN files
+vpn/*.ovpn
+vpn/auth.txt
+vpn/*.key
+vpn/*.crt
+vpn/*.pem
+
+# TVHeadend data
+tvheadend/config/
+tvheadend/recordings/
+tvheadend/timeshift/
+
+# Backups
+backups/
+*.backup.*
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Docker
+.dockerignore
+
+# SSL certificates
+nginx/ssl/
+*.key
+*.crt
+*.pem
+
+# Testing
+test-results/
+coverage/
+
+# Build outputs
+dist/
+build/
+
+# Package manager
+package-lock.json
+yarn.lock
+
