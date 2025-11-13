@@ -75,8 +75,10 @@ services:
       # Timeshift (Pipes temporárias)
       - ./tvheadend/timeshift:/app/timeshift
       
-      # Configuração
-      - ./config.json:/app/config.json:ro
+      # ==========================================
+      # CRÍTICO: config.json READ-WRITE
+      # ==========================================
+      - ./config.json:/app/config.json
       
       # Web UI
       - ./web:/app/web:ro
