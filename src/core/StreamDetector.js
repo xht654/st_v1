@@ -1,3 +1,4 @@
+// src/core/StreamDetector.js - ATUALIZADO COM HEADERS CUSTOMIZADOS
 import puppeteer from 'puppeteer';
 import Logger from '../utils/Logger.js';
 
@@ -31,6 +32,9 @@ export default class StreamDetector {
       
       await this.setupRequestInterception(page, streams, 'simple');
       await this.configurePage(page);
+      
+      // ✅ NOVO: Aplicar headers customizados
+      await this.applyCustomHeaders(page);
       
       // Navegação simples
       await page.goto(this.site.url, { 
@@ -75,6 +79,9 @@ export default class StreamDetector {
       await this.setupRequestInterception(page, streams, 'advanced');
       await this.configurePage(page);
       
+      // ✅ NOVO: Aplicar headers customizados
+      await this.applyCustomHeaders(page);
+      
       // Navegação avançada
       await page.goto(this.site.url, { 
         waitUntil: "domcontentloaded",
@@ -105,6 +112,39 @@ export default class StreamDetector {
       throw error;
     } finally {
       await this.cleanup(browser);
+    }
+  }
+
+  // ✅ NOVO: Aplicar headers customizados no Puppeteer
+  async applyCustomHeaders(page) {
+    try {
+      const customHeaders = this.site.customHeaders || {};
+      
+      // Se não houver headers customizados, retorna
+      if (Object.keys(customHeaders).length === 0) {
+        this.logger.debug('Nenhum header customizado definido');
+        return;
+      }
+      
+      // Log dos headers aplicados
+      this.logger.info(`📋 Aplicando ${Object.keys(customHeaders).length} header(s) customizado(s)`);
+      
+      // Aplicar headers
+      await page.setExtraHTTPHeaders(customHeaders);
+      
+      // Log detalhado (sem expor dados sensíveis)
+      Object.keys(customHeaders).forEach(key => {
+        if (key.toLowerCase().includes('token') || key.toLowerCase().includes('auth')) {
+          this.logger.debug(`   ${key}: [OCULTO]`);
+        } else {
+          const value = customHeaders[key];
+          const displayValue = value.length > 50 ? value.substring(0, 50) + '...' : value;
+          this.logger.debug(`   ${key}: ${displayValue}`);
+        }
+      });
+      
+    } catch (error) {
+      this.logger.warn(`⚠️ Erro ao aplicar headers customizados: ${error.message}`);
     }
   }
 
